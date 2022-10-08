@@ -1,9 +1,9 @@
 import create from 'zustand'
-import { Class } from '../models/class'
+import { Class } from './models/class'
 import axios from 'axios'
 import produce from 'immer'
 
-export interface ClassStore {
+export interface Store {
   classes: Record<number, Class>
   isLoading: boolean
   isInitialized: boolean
@@ -17,7 +17,7 @@ export interface ClassStore {
   addLoudnessWarning: (classId: number, studentPerformanceId: number) => void
 }
 
-export const createClassStore = (apiUrl: string) => create<ClassStore>((set, get) => ({
+export const createStore = (apiUrl: string) => create<Store>((set, get) => ({
   classes: {},
   isLoading: false,
   isInitialized: false,
@@ -61,7 +61,7 @@ export const createClassStore = (apiUrl: string) => create<ClassStore>((set, get
       }
 
       set(
-        produce((state: ClassStore) => {
+        produce((state: Store) => {
           state.classes[id] = response.data
           state.isLoading = false
         })
@@ -84,7 +84,7 @@ export const createClassStore = (apiUrl: string) => create<ClassStore>((set, get
       }
 
       set(
-        produce((state: ClassStore) => {
+        produce((state: Store) => {
           state.classes[classId] = response.data
         })
       )
@@ -105,7 +105,7 @@ export const createClassStore = (apiUrl: string) => create<ClassStore>((set, get
       }
 
       set(
-        produce((state: ClassStore) => {
+        produce((state: Store) => {
           state.classes[classId] = response.data
         })
       )
@@ -125,7 +125,7 @@ export const createClassStore = (apiUrl: string) => create<ClassStore>((set, get
       }
 
       set(
-        produce((state: ClassStore) => {
+        produce((state: Store) => {
           state.classes[classId] = response.data
         })
       )
@@ -145,7 +145,7 @@ export const createClassStore = (apiUrl: string) => create<ClassStore>((set, get
       }
 
       set(
-        produce((state: ClassStore) => {
+        produce((state: Store) => {
           state.classes[classId] = response.data
         })
       )
