@@ -191,7 +191,7 @@ export const createStore = (apiUrl: string) =>
     },
 
     logout: () => {
-      axios.defaults.headers.common['Authorization'] = undefined
+      axios.defaults.headers.common['Authorization'] = false
 
       set(
         produce((state: Store) => {
