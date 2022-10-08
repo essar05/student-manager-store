@@ -1,6 +1,0 @@
-export * from './stores/classStore'
-export * from './models/activityScore'
-export * from './models/class'
-export * from './models/school'
-export * from './models/student'
-export * from './models/studentPerformance'
