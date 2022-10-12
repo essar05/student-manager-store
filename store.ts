@@ -1,7 +1,8 @@
 import create from 'zustand'
 import { Class } from './models/class'
-import axios from 'axios'
+import axios, { AxiosError } from 'axios'
 import produce from 'immer'
+import { School } from './models/school'
 
 export interface Store {
   isAuthenticated?: boolean
@@ -10,9 +11,18 @@ export interface Store {
   classes: Record<number, Class>
   isLoading: boolean
   isInitialized: boolean
+  error?: string
+
+  schools: {
+    entries?: Record<number, School>
+    order?: Array<number>
+    isLoading?: boolean
+  }
 
   fetch: () => void
   fetchById: (id: number) => void
+
+  fetchSchools: () => void
 
   addActivityScore: (classId: number, studentPerformanceId: number, score: number) => void
   deleteActivityScore: (classId: number, studentPerformanceId: number, id: number) => void
@@ -26,7 +36,12 @@ export interface Store {
   logout: () => void
   updateToken: (token: string) => void
 
-  guardUnauthorizedRequest: (request: () => void) => void
+  deleteStudentFromClass: (classId: number, studentToClassId: number) => void
+  addStudentToClass: (classId: number, firstName: string, lastName: string) => void
+  deleteClass: (classId: number) => void
+  addClass: (schoolYear: number, label: string, schoolId: number) => void
+
+  guardUnauthorizedRequest: (request: () => Promise<void>) => void
 }
 
 export const createStore = (apiUrl: string) =>
@@ -36,16 +51,20 @@ export const createStore = (apiUrl: string) =>
     isLoading: false,
     isInitialized: false,
 
+    schools: {},
+
     fetch: async () => {
       set(() => ({ isLoading: true }))
 
       try {
-        get().guardUnauthorizedRequest(async () => {
+        await get().guardUnauthorizedRequest(async () => {
           const response = await axios.get(`${apiUrl}/classes`)
 
           set(
             produce(state => {
               const classes = response.data as Class[]
+
+              state.classes = {}
 
               classes.forEach(class_ => {
                 state.classes[class_.id] = class_
@@ -70,7 +89,7 @@ export const createStore = (apiUrl: string) =>
       set(() => ({ isLoading: true }))
 
       try {
-        get().guardUnauthorizedRequest(async () => {
+        await get().guardUnauthorizedRequest(async () => {
           const response = await axios.get(`${apiUrl}/classes/${id}`)
 
           if (!response.data) {
@@ -90,8 +109,51 @@ export const createStore = (apiUrl: string) =>
       }
     },
 
+    fetchSchools: async () => {
+      set(
+        produce((state: Store) => {
+          state.schools.isLoading = true
+        })
+      )
+
+      try {
+        await get().guardUnauthorizedRequest(async () => {
+          const response = await axios.get(`${apiUrl}/schools`)
+
+          if (!response.data) {
+            return
+          }
+
+          set(
+            produce((state: Store) => {
+              const schools = response.data as School[]
+
+              const entries: Record<number, School> = {}
+              const order: number[] = []
+
+              schools.forEach(school => {
+                order.push(school.id)
+                entries[school.id] = school
+              })
+
+              state.schools.order = order
+              state.schools.entries = entries
+              state.schools.isLoading = false
+            })
+          )
+        })
+      } catch (e) {
+        console.error('Error fetching classes', e)
+        set(
+          produce((state: Store) => {
+            state.schools.isLoading = false
+          })
+        )
+      }
+    },
+
     addActivityScore: async (classId, studentPerformanceId, score) => {
-      get().guardUnauthorizedRequest(async () => {
+      await get().guardUnauthorizedRequest(async () => {
         const response = await axios.post(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/activityScores`,
           { score }
@@ -110,7 +172,7 @@ export const createStore = (apiUrl: string) =>
     },
 
     deleteActivityScore: async (classId, studentPerformanceId, id) => {
-      get().guardUnauthorizedRequest(async () => {
+      await get().guardUnauthorizedRequest(async () => {
         const response = await axios.delete(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/activityScores/${id}`
         )
@@ -128,7 +190,7 @@ export const createStore = (apiUrl: string) =>
     },
 
     addActivityPoints: async (classId, studentPerformanceId, points) => {
-      get().guardUnauthorizedRequest(async () => {
+      await get().guardUnauthorizedRequest(async () => {
         const response = await axios.post(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/activityPoints`,
           { points }
@@ -147,7 +209,7 @@ export const createStore = (apiUrl: string) =>
     },
 
     addLoudnessWarning: async (classId, studentPerformanceId) => {
-      get().guardUnauthorizedRequest(async () => {
+      await get().guardUnauthorizedRequest(async () => {
         const response = await axios.post(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/loudnessWarnings`
         )
@@ -165,7 +227,7 @@ export const createStore = (apiUrl: string) =>
     },
 
     deleteLastLoudnessWarning: async (classId, studentPerformanceId) => {
-      get().guardUnauthorizedRequest(async () => {
+      await get().guardUnauthorizedRequest(async () => {
         const response = await axios.delete(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/loudnessWarnings`
         )
@@ -183,7 +245,7 @@ export const createStore = (apiUrl: string) =>
     },
 
     addMissingHomework: async (classId, studentPerformanceId) => {
-      get().guardUnauthorizedRequest(async () => {
+      await get().guardUnauthorizedRequest(async () => {
         const response = await axios.post(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/missingHomeworks`
         )
@@ -201,7 +263,7 @@ export const createStore = (apiUrl: string) =>
     },
 
     deleteLastMissingHomework: async (classId, studentPerformanceId) => {
-      get().guardUnauthorizedRequest(async () => {
+      await get().guardUnauthorizedRequest(async () => {
         const response = await axios.delete(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/missingHomeworks`
         )
@@ -265,9 +327,62 @@ export const createStore = (apiUrl: string) =>
       )
     },
 
-    guardUnauthorizedRequest: (request: () => void) => {
+    deleteStudentFromClass: async (classId: number, studentToClassId: number) => {
+      await get().guardUnauthorizedRequest(async () => {
+        await axios.delete(`${apiUrl}/classes/${classId}/studentsPerformance/${studentToClassId}`)
+
+        get().fetchById(classId)
+      })
+    },
+
+    addStudentToClass: async (classId: number, firstName: string, lastName: string) => {
+      await get().guardUnauthorizedRequest(async () => {
+        await axios.post(`${apiUrl}/classes/${classId}/students`, { firstName, lastName })
+
+        get().fetchById(classId)
+      })
+    },
+
+    deleteClass: async (classId: number) => {
+      await get().guardUnauthorizedRequest(async () => {
+        await axios.delete(`${apiUrl}/classes/${classId}`)
+
+        get().fetch()
+      })
+    },
+
+    addClass: async (schoolYear: number, label: string, schoolId: number) => {
       try {
-        request()
+        await get().guardUnauthorizedRequest(async () => {
+          await axios.post(`${apiUrl}/classes`, { schoolYear, label, schoolId })
+
+          set(
+            produce((state: Store) => {
+              state.error = undefined
+            })
+          )
+
+          get().fetch()
+        })
+      } catch (e: any) {
+        if (e?.name === 'AxiosError' && e?.response?.status === 400) {
+          // @ts-ignore
+          const error = (e as AxiosError).response?.data?.message as string | undefined
+
+          if (error) {
+            set(
+              produce((state: Store) => {
+                state.error = error
+              })
+            )
+          }
+        }
+      }
+    },
+
+    guardUnauthorizedRequest: async (request: () => Promise<void>) => {
+      try {
+        await request()
       } catch (e) {
         console.warn('Caught exception during request. Rethrowing', e)
         if (e?.response?.status === 401) {
