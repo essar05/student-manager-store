@@ -19,6 +19,8 @@ export interface Store {
     isLoading?: boolean
   }
 
+  isOperationLoading?: boolean
+
   fetch: () => void
   fetchById: (id: number) => void
 
@@ -190,6 +192,17 @@ export const createStore = (apiUrl: string) =>
     },
 
     addActivityPoints: async (classId, studentPerformanceId, points) => {
+      set(
+        produce((state: Store) => {
+          // const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+          // if (sp && sp.activityPoints !== undefined) {
+          //   console.log(typeof sp.activityPoints, sp.activityPoints)
+          //   sp.activityPoints += points
+          // }
+          state.isOperationLoading = true
+        })
+      )
+
       await get().guardUnauthorizedRequest(async () => {
         const response = await axios.post(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/activityPoints`,
@@ -203,9 +216,21 @@ export const createStore = (apiUrl: string) =>
         set(
           produce((state: Store) => {
             state.classes[classId] = response.data
+            state.isOperationLoading = false
           })
         )
       })
+
+      set(
+        produce((state: Store) => {
+          // const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+          // if (sp && sp.activityPoints !== undefined) {
+          //   console.log(typeof sp.activityPoints, sp.activityPoints)
+          //   sp.activityPoints += points
+          // }
+          state.isOperationLoading = false
+        })
+      )
     },
 
     addLoudnessWarning: async (classId, studentPerformanceId) => {
@@ -299,7 +324,7 @@ export const createStore = (apiUrl: string) =>
 
         return response.data.access_token
       } catch (e) {
-        console.log('Error logging in', e)
+        console.log('Error logging in', JSON.stringify(e))
 
         return null
       }
