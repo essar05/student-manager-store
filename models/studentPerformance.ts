@@ -14,4 +14,6 @@ export interface StudentPerformance {
   activityPoints?: number
   missingHomeworks?: number
   loudnessWarnings?: number
+
+  initialTestScore?: number
 }

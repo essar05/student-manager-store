@@ -34,6 +34,7 @@ export interface Store {
   deleteLastMissingHomework: (classId: number, studentPerformanceId: number, immediate?: boolean) => void
   addLoudnessWarning: (classId: number, studentPerformanceId: number, immediate?: boolean) => void
   deleteLastLoudnessWarning: (classId: number, studentPerformanceId: number, immediate?: boolean) => void
+  updateInitialTestScore: (classId: number, studentPerformanceId: number, score: number, immediate?: boolean) => void
 
   login: (username: string, password: string) => Promise<string | null>
   logout: () => void
@@ -41,6 +42,13 @@ export interface Store {
 
   deleteStudentFromClass: (classId: number, studentToClassId: number) => void
   addStudentToClass: (classId: number, firstName: string, lastName: string) => void
+  updateStudentInClass: (
+    classId: number,
+    studentToClassId: number,
+    studentId: number,
+    firstName: string,
+    lastName: string
+  ) => void
   deleteClass: (classId: number) => void
   addClass: (schoolYear: number, label: string, schoolId: number) => void
 
@@ -104,6 +112,13 @@ export const createStore = (apiUrl: string) =>
 
           set(
             produce((state: Store) => {
+              if (!state.classesOrder) {
+                state.classesOrder = [id]
+              }
+              if (!state.classes) {
+                state.classes = {}
+              }
+
               state.classes[id] = response.data
               state.isLoading = false
             })
@@ -367,6 +382,39 @@ export const createStore = (apiUrl: string) =>
       })
     },
 
+    updateInitialTestScore: async (classId, studentPerformanceId, score, immediate = true) => {
+      if (immediate) {
+        set(
+          produce((state: Store) => {
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+            if (sp) {
+              sp.initialTestScore = score
+            }
+          })
+        )
+      }
+
+      await get().guardUnauthorizedRequest(async () => {
+        const response = await axios.patch(
+          `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/initialTestScore`,
+          { score }
+        )
+
+        if (!response.data || immediate) {
+          return
+        }
+
+        set(
+          produce((state: Store) => {
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+            if (sp) {
+              sp.initialTestScore = response.data
+            }
+          })
+        )
+      })
+    },
+
     login: async (username, password) => {
       try {
         const response = await axios.post(
@@ -427,6 +475,21 @@ export const createStore = (apiUrl: string) =>
         await axios.post(`${apiUrl}/classes/${classId}/students`, { firstName, lastName })
 
         get().fetchById(classId)
+      })
+    },
+
+    updateStudentInClass: async (classId, studentToClassId, studentId, firstName, lastName) => {
+      await get().guardUnauthorizedRequest(async () => {
+        const response = await axios.patch(`${apiUrl}/students/${studentId}`, { firstName, lastName })
+
+        set(
+          produce((state: Store) => {
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentToClassId)
+            if (sp) {
+              sp.student = response.data
+            }
+          })
+        )
       })
     },
 
