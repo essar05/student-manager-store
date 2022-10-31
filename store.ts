@@ -9,6 +9,7 @@ export interface Store {
   authToken?: string
 
   classes: Record<number, Class>
+  classesOrder: number[]
   isLoading: boolean
   isInitialized: boolean
   error?: string
@@ -50,6 +51,7 @@ export const createStore = (apiUrl: string) =>
   create<Store>((set, get) => ({
     authToken: undefined,
     classes: {},
+    classesOrder: [],
     isLoading: false,
     isInitialized: false,
 
@@ -67,8 +69,10 @@ export const createStore = (apiUrl: string) =>
               const classes = response.data as Class[]
 
               state.classes = {}
+              state.classesOrder = []
 
               classes.forEach(class_ => {
+                state.classesOrder.push(class_.id)
                 state.classes[class_.id] = class_
               })
 
