@@ -26,13 +26,13 @@ export interface Store {
 
   fetchSchools: () => void
 
-  addActivityScore: (classId: number, studentPerformanceId: number, score: number) => void
-  deleteActivityScore: (classId: number, studentPerformanceId: number, id: number) => void
-  addActivityPoints: (classId: number, studentPerformanceId: number, points: number) => void
-  addMissingHomework: (classId: number, studentPerformanceId: number) => void
-  deleteLastMissingHomework: (classId: number, studentPerformanceId: number) => void
-  addLoudnessWarning: (classId: number, studentPerformanceId: number) => void
-  deleteLastLoudnessWarning: (classId: number, studentPerformanceId: number) => void
+  addActivityScore: (classId: number, studentPerformanceId: number, score: number, immediate?: boolean) => void
+  deleteActivityScore: (classId: number, studentPerformanceId: number, id: number, immediate?: boolean) => void
+  addActivityPoints: (classId: number, studentPerformanceId: number, points: number, immediate?: boolean) => void
+  addMissingHomework: (classId: number, studentPerformanceId: number, amount: number, immediate?: boolean) => void
+  deleteLastMissingHomework: (classId: number, studentPerformanceId: number, immediate?: boolean) => void
+  addLoudnessWarning: (classId: number, studentPerformanceId: number, immediate?: boolean) => void
+  deleteLastLoudnessWarning: (classId: number, studentPerformanceId: number, immediate?: boolean) => void
 
   login: (username: string, password: string) => Promise<string | null>
   logout: () => void
@@ -167,19 +167,38 @@ export const createStore = (apiUrl: string) =>
 
         set(
           produce((state: Store) => {
-            state.classes[classId] = response.data
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+
+            if (!response.data || !sp) {
+              return
+            }
+
+            sp.activityScores = sp.activityScores ? [...sp.activityScores, response.data] : [response.data]
           })
         )
       })
     },
 
-    deleteActivityScore: async (classId, studentPerformanceId, id) => {
+    deleteActivityScore: async (classId, studentPerformanceId, id, immediate = true) => {
+      if (immediate) {
+        set(
+          produce((state: Store) => {
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+            if (sp) {
+              const activityScores = sp?.activityScores?.filter(as => as.id !== id)
+
+              sp.activityScores = activityScores
+            }
+          })
+        )
+      }
+
       await get().guardUnauthorizedRequest(async () => {
         const response = await axios.delete(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/activityScores/${id}`
         )
 
-        if (!response.data) {
+        if (!response.data || immediate) {
           return
         }
 
@@ -191,17 +210,17 @@ export const createStore = (apiUrl: string) =>
       })
     },
 
-    addActivityPoints: async (classId, studentPerformanceId, points) => {
-      set(
-        produce((state: Store) => {
-          // const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
-          // if (sp && sp.activityPoints !== undefined) {
-          //   console.log(typeof sp.activityPoints, sp.activityPoints)
-          //   sp.activityPoints += points
-          // }
-          state.isOperationLoading = true
-        })
-      )
+    addActivityPoints: async (classId, studentPerformanceId, points, immediate = true) => {
+      if (immediate) {
+        set(
+          produce((state: Store) => {
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+            if (sp && sp.activityPoints !== undefined) {
+              sp.activityPoints += points
+            }
+          })
+        )
+      }
 
       await get().guardUnauthorizedRequest(async () => {
         const response = await axios.post(
@@ -209,7 +228,7 @@ export const createStore = (apiUrl: string) =>
           { points }
         )
 
-        if (!response.data) {
+        if (!response.data || immediate) {
           return
         }
 
@@ -220,26 +239,26 @@ export const createStore = (apiUrl: string) =>
           })
         )
       })
-
-      set(
-        produce((state: Store) => {
-          // const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
-          // if (sp && sp.activityPoints !== undefined) {
-          //   console.log(typeof sp.activityPoints, sp.activityPoints)
-          //   sp.activityPoints += points
-          // }
-          state.isOperationLoading = false
-        })
-      )
     },
 
-    addLoudnessWarning: async (classId, studentPerformanceId) => {
+    addLoudnessWarning: async (classId, studentPerformanceId, immediate = true) => {
+      if (immediate) {
+        set(
+          produce((state: Store) => {
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+            if (sp && sp.loudnessWarnings !== undefined) {
+              sp.loudnessWarnings += 1
+            }
+          })
+        )
+      }
+
       await get().guardUnauthorizedRequest(async () => {
         const response = await axios.post(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/loudnessWarnings`
         )
 
-        if (!response.data) {
+        if (!response.data || immediate) {
           return
         }
 
@@ -251,13 +270,24 @@ export const createStore = (apiUrl: string) =>
       })
     },
 
-    deleteLastLoudnessWarning: async (classId, studentPerformanceId) => {
+    deleteLastLoudnessWarning: async (classId, studentPerformanceId, immediate = true) => {
+      if (immediate) {
+        set(
+          produce((state: Store) => {
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+            if (sp && sp.loudnessWarnings !== undefined) {
+              sp.loudnessWarnings -= 1
+            }
+          })
+        )
+      }
+
       await get().guardUnauthorizedRequest(async () => {
         const response = await axios.delete(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/loudnessWarnings`
         )
 
-        if (!response.data) {
+        if (!response.data || immediate) {
           return
         }
 
@@ -269,31 +299,59 @@ export const createStore = (apiUrl: string) =>
       })
     },
 
-    addMissingHomework: async (classId, studentPerformanceId) => {
+    addMissingHomework: async (classId, studentPerformanceId, amount, immediate = true) => {
+      if (immediate) {
+        set(
+          produce((state: Store) => {
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+            if (sp && sp.missingHomeworks !== undefined) {
+              sp.missingHomeworks += amount
+            }
+          })
+        )
+      }
+
       await get().guardUnauthorizedRequest(async () => {
         const response = await axios.post(
-          `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/missingHomeworks`
+          `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/missingHomeworks`,
+          {
+            amount,
+          }
         )
 
-        if (!response.data) {
+        if (!response.data || immediate) {
           return
         }
 
         set(
           produce((state: Store) => {
-            state.classes[classId] = response.data
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+            if (sp) {
+              sp.missingHomeworks = response.data
+            }
           })
         )
       })
     },
 
-    deleteLastMissingHomework: async (classId, studentPerformanceId) => {
+    deleteLastMissingHomework: async (classId, studentPerformanceId, immediate = true) => {
+      if (immediate) {
+        set(
+          produce((state: Store) => {
+            const sp = state.classes[classId].studentsPerformance?.find(sp => sp.id === studentPerformanceId)
+            if (sp && sp.missingHomeworks !== undefined) {
+              sp.missingHomeworks += 1
+            }
+          })
+        )
+      }
+
       await get().guardUnauthorizedRequest(async () => {
         const response = await axios.delete(
           `${apiUrl}/classes/${classId}/studentsPerformance/${studentPerformanceId}/missingHomeworks`
         )
 
-        if (!response.data) {
+        if (!response.data || immediate) {
           return
         }
 
